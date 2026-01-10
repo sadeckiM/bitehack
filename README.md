@@ -12,27 +12,36 @@
 
 ### Projekty
 
-## Gra z kulka
+## Gra w kulke
 
 # Mechanika
-[] Labirynt
-[] Obudowa
-[] Mechanizm
+- [ ] Labirynt
+- [ ] Obudowa
+- [ ] Mechanizm
 
-#Elektronika
-[] Joystick
-[] Serwa
+# Elektronika
+- [ ] Joystick
+- [ ] Serwa
+- [ ] Czujniki
 
-#Embedded
-[] Sterowanie joystickiem
-[] Sterowanie serwami
+# Embedded
+- [ ] Sterowanie joystickiem
+- [ ] Sterowanie serwami
+- [ ] Odczyt z czujnikow - sterowanie LED
 
 ## Kasyno
 
-#Mechanika
-[] Uklad ruchu
+# Mechanika
+- [ ] Uklad ruchu
+- [ ] Interfejs pod wyswietlacz
+- [ ] Zetony
 
+# Elektronika
+- [ ] Wyswietlacz
+- [ ] RFID
 
-#Elektronika
-
-#Embedded
+# Embedded
+- [ ] Sterowanie wyswietlaczem
+- [ ] Strona internetowa
+- [ ] Wyswietlanie kasy
+- [ ] RFID
