@@ -1,16 +1,25 @@
-// Definicja pinów dla Arduino Nano
-const int PWMA = 3;  // Pin PWM
-const int AIN1 = 4;  // Kierunek
-const int AIN2 = 5;  // Kierunek
+
+
+
+const int PWMA = 6;  // Pin PWM
+const int AIN1 = 7;  // Kierunek
+const int AIN2 = 8;  // Kierunek
+
+const int PWMB = 10; // Pin PWM
+const int BIN1 = 11; // Kierunek 
+const int BIN2 = 12; // Kierunek
 
 void setup() {
   pinMode(PWMA, OUTPUT);
   pinMode(AIN1, OUTPUT);
   pinMode(AIN2, OUTPUT);
 
+  pinMode(PWMB, OUTPUT);
+  pinMode(BIN1, OUTPUT);
+  pinMode(BIN2, OUTPUT);
+
   
-  Serial.begin(9600); // Standard dla Nano
-  Serial.println("Test silnika TB6612 + Arduino Nano");
+  Serial.begin(115200); // Standard dla Nano
 }
 
 void loop() {
