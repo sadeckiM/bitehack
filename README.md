@@ -20,28 +20,36 @@
 - [ ] Mechanizm
 
 ### Elektronika (Maciej i Maslak)
-- [ ] Joystick
-- [ ] Serwa
-- [ ] Czujniki
+- [x] Joystick
+- [x] Serwa
+- [x] Czujniki
+- [ ] Macierze LED
 
 ### Embedded - wspolnie
 - [ ] Sterowanie joystickiem
 - [ ] Sterowanie serwami
-- [ ] Odczyt z czujnikow - sterowanie LED
+- [ ] Odczyt z czujników - sterowanie LED
 
 ## Kasyno
 
-### Mechanika
-- [ ] Uklad ruchu
-- [ ] Interfejs pod wyswietlacz
-- [ ] Zetony
+### Mechanika (Borsuk i Stary)
+- [x] Układ ruchu
+- [ ] Interfejs pod wyświetlacze
+- [ ] Żetony
+- [ ] Korpus
 
-### Elektronika
-- [ ] Wyswietlacz
-- [ ] RFID
+### Elektronika (Maciej)
+- [ ] Wyświetlacz
+- [x] RFID
+- [ ] LEDy
 
-### Embedded
-- [ ] Sterowanie wyswietlaczem
+### Embedded (Maślak)
+- [ ] Sterowanie wyświetlaczem
 - [ ] Strona internetowa
-- [ ] Wyswietlanie kasy
-- [ ] RFID
+- [ ] Wyświetlanie kasy
+- [x] RFID
+- [ ] Baza danych pod RFID
+
+### Marketing
+- [ ] Prezentacja
+- [ ] Nazwa robota
