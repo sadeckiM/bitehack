@@ -10,37 +10,37 @@
 - #### Maciej Bebenek
 - #### Jan Farbotko
 
-### Projekty
+# Projekty
 
 ## Gra w kulke
 
-# Mechanika
+### Mechanika (Borsuk i Stary)
 - [ ] Labirynt
 - [ ] Obudowa
 - [ ] Mechanizm
 
-# Elektronika
+### Elektronika (Maciej i Maslak)
 - [ ] Joystick
 - [ ] Serwa
 - [ ] Czujniki
 
-# Embedded
+### Embedded - wspolnie
 - [ ] Sterowanie joystickiem
 - [ ] Sterowanie serwami
 - [ ] Odczyt z czujnikow - sterowanie LED
 
 ## Kasyno
 
-# Mechanika
+### Mechanika
 - [ ] Uklad ruchu
 - [ ] Interfejs pod wyswietlacz
 - [ ] Zetony
 
-# Elektronika
+### Elektronika
 - [ ] Wyswietlacz
 - [ ] RFID
 
-# Embedded
+### Embedded
 - [ ] Sterowanie wyswietlaczem
 - [ ] Strona internetowa
 - [ ] Wyswietlanie kasy
