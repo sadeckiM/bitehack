@@ -10,7 +10,7 @@
 - #### Maciej Bebenek
 - #### Jan Farbotko
 
-# Projekty
+# Projekt
 
 ## Gra w kulke
 
@@ -26,8 +26,8 @@
 - [ ] Macierze LED
 
 ### Embedded - wspolnie
-- [ ] Sterowanie joystickiem
-- [ ] Sterowanie serwami
+- [x] Sterowanie joystickiem
+- [x] Sterowanie serwami
 - [ ] Odczyt z czujników - sterowanie LED
 
 ## Kasyno
@@ -36,20 +36,25 @@
 - [x] Układ ruchu
 - [ ] Interfejs pod wyświetlacze
 - [ ] Żetony
-- [ ] Korpus
+- [x] Korpus
+- [ ] Serwo do żetonów
 
 ### Elektronika (Maciej)
-- [ ] Wyświetlacz
+- [x] Wyświetlacz
 - [x] RFID
 - [ ] LEDy
+- [ ] Ruleta
+- [ ] Czerwony przycisk
 
 ### Embedded (Maślak)
-- [ ] Sterowanie wyświetlaczem
+- [x] Sterowanie wyświetlaczem
 - [ ] Strona internetowa
 - [ ] Wyświetlanie kasy
 - [x] RFID
 - [ ] Baza danych pod RFID
+- [ ] Głośnik
 
 ### Marketing
 - [ ] Prezentacja
 - [ ] Nazwa robota
+- [ ] Dekorowanie korpusu
