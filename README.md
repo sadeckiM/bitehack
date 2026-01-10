@@ -1,8 +1,14 @@
-###FC PO NALEWCE
-Robot kasyno
+## FC PO NALEWCE 
 
-###Ekipa
-Michal Sadecki
-Jakub Borsukiewicz
-Maciej Bebenek
-Jan Farbotko
+### Robot kasyno
+
+
+
+
+### Ekipa 
+
+#### - Michal Sadecki
+
+#### - Jakub Borsukiewicz
+#### - Maciej Bebenek
+#### - Jan Farbotko
