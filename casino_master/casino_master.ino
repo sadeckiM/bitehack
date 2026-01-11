@@ -8,6 +8,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <APDS9930.h>
 
 
 
@@ -44,6 +45,10 @@
 #define LIMIT_CZASU 10 
 int licznik_czasu = 0;
 
+// --- LABIRYNT I2C ---
+#define SLAVE_LABIRYNT_ADDR 8    // Adres Arduino (Slave)
+#define LABIRYNT_TIME_LIMIT 25   // Czas gry w sekundach
+
 // USTAWIENIA LOGICZNE
 #define LEVEL_USER 1
 #define LEVEL_ADMIN 2
@@ -59,6 +64,7 @@ LiquidCrystal_I2C lcd(LCD_ADDR, LCD_COLS, LCD_ROWS);
 Preferences db; 
 AiEsp32RotaryEncoder rotary = AiEsp32RotaryEncoder(ROT_A_PIN, ROT_B_PIN, ROT_BTN_PIN, -1, ROT_STEPS);
 Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, OLED_RESET);
+APDS9930 apds = APDS9930();
 
 
 // ================= ZMIENNE STANU =================
@@ -360,6 +366,12 @@ String getColorName(int id) {
   return "?";
 }
 
+void setLabiryntState(bool state) {
+  Wire.beginTransmission(SLAVE_LABIRYNT_ADDR);
+  Wire.write(state ? 1 : 0); // 1 = Odblokuj serwa, 0 = Zablokuj
+  Wire.endTransmission();
+}
+
 
 
 // ================= FORWARD DECLARATIONS =================
@@ -432,6 +444,22 @@ void setup() {
     display.display(); 
   }
 
+  // --- INICJALIZACJA CZUJNIKA METY (APDS-9930) ---
+  // Ważne: Wire.begin() zostało już wywołane przez biblioteki ekranu, więc I2C działa.
+  if (apds.init()) {
+    Serial.println(F("APDS-9930 inicjalizacja OK"));
+    
+    // Wyłączamy przerwania, włączamy tylko czujnik zbliżeniowy
+    if (apds.enableProximitySensor(false)) {
+      Serial.println(F("Tryb Proximity wlaczony"));
+    } else {
+      Serial.println(F("Blad wlaczania Proximity!"));
+    }
+    
+    // Ustawiamy czułość (Gain). 2X jest zazwyczaj optymalne.
+    apds.setProximityGain(PGAIN_2X); 
+  } else {
+    Serial.println(F("BLAD: Nie wykryto APDS-9930! Sprawdz kable SDA/SCL/3.3V"));
   Serial.println("--- SYSTEM GOTOWY v4.2 ---");
 
   // TEST GŁÓWNY (już po załadowaniu wszystkiego)
@@ -440,6 +468,7 @@ void setup() {
   
   delay(2000);
   showScanScreen();
+  }
 }
 
 
@@ -674,74 +703,143 @@ void handleRouletteBet() {
 }
 
 // --- GŁÓWNA PĘTLA GRY (ODBIÓR WYNIKÓW) ---
+// Zmienne pomocnicze do Labiryntu
+unsigned long labiryntStartTime = 0;
+bool labiryntRunning = false;
+
 void handlePlaying() {
-  if (rotary.isEncoderButtonClicked()) {} // Blokada
+  // Blokada przypadkowego kliknięcia enkodera podczas gry
+  if (rotary.isEncoderButtonClicked()) {} 
 
-  if (Serial.available() > 0) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
+  // ============================================================
+  // GRA 1: RULETKA (ID 0)
+  // ============================================================
+  if (activeGameId == 0) {
+    if (Serial.available() > 0) {
+      String cmd = Serial.readStringUntil('\n');
+      cmd.trim();
 
-    if (cmd.startsWith("SCORE:")) {
-      int scoreValue = cmd.substring(6).toInt(); 
-      int pointsWon = 0;
-      bool userWon = false;
+      if (cmd.startsWith("SCORE:")) {
+        int winningColor = cmd.substring(6).toInt(); 
+        int pointsWon = 0;
+        bool userWon = false;
 
-      // === LOGIKA DLA RULETKI ===
-      if (activeGameId == 0) {
-        int winningColor = scoreValue; // W ruletce SCORE to ID koloru
-        
-        // Sprawdź czy kolor pasuje
+        // Logika wygranej Ruletki
         if (winningColor == rouletteColorIndex) {
           userWon = true;
-          int multiplier = 2; // Domyślny dla Czerwony/Biały
-          if (winningColor == 2) multiplier = 7; // Zielony
-          
+          int multiplier = (winningColor == 2) ? 7 : 2; 
           pointsWon = rouletteBetAmount * multiplier;
-        } else {
-          userWon = false;
-          pointsWon = 0;
         }
 
-        // Wyświetlanie dla Ruletki
         lcd.clear();
         lcd.print("Wynik: " + getColorName(winningColor));
         lcd.setCursor(0, 1);
         if (userWon) {
            lcd.print("Wygrana: " + String(pointsWon));
+           animacjaWin();
+           playTune(winFFM, winFFD, 10, 170);
         } else {
            lcd.print("Przegrana :(");
+           animacjaLose();
         }
 
-      // === LOGIKA DLA LABIRYNTU (i innych gier) ===
-      } else {
-        // W labiryncie SCORE to po prostu punkty
-        pointsWon = scoreValue;
-        userWon = (pointsWon > 0);
-        
-        lcd.clear();
-        if (userWon) {
-          lcd.print("WYGRANA!");
-          lcd.setCursor(0, 1);
-          lcd.print("+" + String(pointsWon) + " pkt");
-        } else {
-          lcd.print("KONIEC GRY");
-          lcd.setCursor(0, 1);
-          lcd.print("Powodzenia next!");
+        if (pointsWon > 0) {
+          int current = db_getBalance(currentLoggedUid);
+          db_setBalance(currentLoggedUid, current + pointsWon);
         }
+
+        delay(3000); 
+        currentState = STATE_GAME_SELECT;
+        rotary.setBoundaries(0, lenMenuGames - 1, true);
+        updateLcdMenu(menuGames[0]); 
       }
+    }
+  }
 
-      // --- WSPÓLNA LOGIKA ZAPISU DO BAZY ---
-      if (pointsWon > 0) {
-        int current = db_getBalance(currentLoggedUid);
-        db_setBalance(currentLoggedUid, current + pointsWon);
-      }
+  // ============================================================
+  // GRA 2: LABIRYNT (ID 1)
+  // ============================================================
+  else if (activeGameId == 1) {
+    
+    // --- A. START GRY (Wykonuje się tylko raz) ---
+    if (!labiryntRunning) {
+      labiryntRunning = true;
+      labiryntStartTime = millis();
+      
+      // Wyślij sygnał do Arduino: "Włącz joystick!"
+      setLabiryntState(true);
+      
+      lcd.clear(); lcd.print("LABIRYNT START!");
+      playTune(marioM, marioD, 11, 200); 
+    }
 
-      delay(3000); 
+    // --- B. LICZNIK CZASU ---
+    unsigned long elapsedTime = (millis() - labiryntStartTime) / 1000;
+    int timeLeft = LABIRYNT_TIME_LIMIT - elapsedTime;
 
-      // Reset i powrót
+    // Odświeżanie czasu na LCD (tylko gdy się zmieni sekunda)
+    static int lastTimeDisplay = -1;
+    if (timeLeft != lastTimeDisplay) {
+      lcd.setCursor(0, 1);
+      lcd.print("Czas: " + String(timeLeft) + "s   ");
+      lastTimeDisplay = timeLeft;
+    }
+
+    // --- C. ODCZYT CZUJNIKA METY (APDS-9930) ---
+    bool metaTriggered = false;
+    uint16_t proximity_data = 0;
+
+    // Próba odczytu czujnika
+    if ( !apds.readProximity(proximity_data) ) {
+       // Jeśli odczyt się udał, sprawdzamy wartość.
+       // 1023 = max zbliżenie. 850 to ok. 1-2 cm od czujnika.
+       if (proximity_data > 850) { 
+          metaTriggered = true;
+       }
+    }
+
+    // --- D. SPRAWDZENIE WYNIKU ---
+    
+    // SCENARIUSZ: WYGRANA (Meta)
+    if (metaTriggered) {
+      setLabiryntState(false); // Wyślij do Arduino: "Wyłącz serwa!"
+      labiryntRunning = false;
+      
+      int pointsWon = 50; // Nagroda za labirynt
+      int current = db_getBalance(currentLoggedUid);
+      db_setBalance(currentLoggedUid, current + pointsWon);
+
+      lcd.clear(); lcd.print("META ZDOBYTA!");
+      lcd.setCursor(0, 1); lcd.print("Nagroda: " + String(pointsWon));
+      
+      animacjaWin();
+      playTune(winFFM, winFFD, 10, 170);
+      delay(3000);
+      
+      // Powrót do menu
       currentState = STATE_GAME_SELECT;
       rotary.setBoundaries(0, lenMenuGames - 1, true);
-      updateLcdMenu(menuGames[0]); 
+      updateLcdMenu(menuGames[1]); 
+      return;
+    }
+
+    // SCENARIUSZ: PRZEGRANA (Czas minął)
+    if (timeLeft <= 0) {
+      setLabiryntState(false); // Wyślij do Arduino: "Wyłącz serwa!"
+      labiryntRunning = false;
+
+      lcd.clear(); lcd.print("KONIEC CZASU!");
+      lcd.setCursor(0, 1); lcd.print("Sprobuj ponownie");
+      
+      animacjaLose();
+      playTune(lossM, lossD, 4, 100);
+      delay(3000);
+
+      // Powrót do menu
+      currentState = STATE_GAME_SELECT;
+      rotary.setBoundaries(0, lenMenuGames - 1, true);
+      updateLcdMenu(menuGames[1]);
+      return;
     }
   }
 }
