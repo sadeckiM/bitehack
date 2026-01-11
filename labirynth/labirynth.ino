@@ -10,13 +10,18 @@ const int servoPinX = 13;
 const int servoPinY = 14;
 const int joyPinX = 34;
 const int joyPinY = 35;
+const int buttonSW = 25;
 
 // --- OBIEKTY I ZMIENNE ---
 Servo servoX;
 Servo servoY;
 
+bool gameStarted = false; // Zmienna stanu - czy gra trwa?
+int lastButtonState = HIGH; // Do wykrywania kliknięcia
+
 int joyValX = 0;
 int joyValY = 0;
+int swVal = 0;
 int servoAngleX = 0;
 int servoAngleY = 0;
 
@@ -30,9 +35,30 @@ void setup() {
   Serial.println("Start systemu sterowania");
   Serial.print("Maksymalny kat ustawiony na: ");
   Serial.println(MAX_ANGLE);
+  pinMode(buttonSW, INPUT_PULLUP);
 }
 
 void loop() {
+
+  /*bool light_level=current_light();
+  /if (!light_level){
+    gameStarted = !gameStarted;
+    break;
+  }*/
+  int currentButtonState = digitalRead(buttonSW);
+
+  if (currentButtonState == LOW && lastButtonState == HIGH) {
+    gameStarted = !gameStarted; // Przełącz stan (ON/OFF)
+    
+    if (gameStarted) {
+      Serial.println("GRA ROZPOCZETA!");
+    } else {
+      Serial.println("GRA ZATRZYMANA.");
+    }
+    delay(200); // Prosty debouncing (eliminacja drgań styków)
+  }
+  lastButtonState = currentButtonState;
+
   // 1. ODCZYT (0-4095)
   joyValX = analogRead(joyPinX);
   joyValY = analogRead(joyPinY);
@@ -55,6 +81,8 @@ void loop() {
     Serial.print(" -> Kat: "); Serial.println(servoAngleX);
     lastPrint = millis();
   }
+
+
 
   delay(20);
 }
