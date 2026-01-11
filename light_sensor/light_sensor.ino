@@ -1,11 +1,20 @@
 #include <Wire.h>
 #include <APDS9930.h>
-
+#define ARDUINO_SLAVE_ADDR 8 // Adres I2C Arduino
 
 // --- OBIEKTY I ZMIENNE ---
 APDS9930 apds = APDS9930();
 float ambient_light = 0;
 float interact = 5.0;
+
+bool isBallDetected() {
+  if (apds.readAmbientLightLux(ambient_light)) {
+    if (ambient_light < interact && ambient_light != -1) {
+      return true;
+    }
+  }
+  return false;
+}
 
 void setup() {
   // Prędkość standardowa dla ESP32
@@ -28,17 +37,16 @@ void setup() {
 
 }
 void loop() {
+  if (isBallDetected()) {
+    Serial.println("KULKA WYKRYTA! Wysyłam do Arduino...");
+    
+    // Wysyłanie informacji do Arduino (Slave)
+    Wire.beginTransmission(ARDUINO_SLAVE_ADDR);
+    Wire.write(1); // 1 = Kulka wykryta
+    Wire.endTransmission();
+    
+    delay(1000); // Zapora, by nie wysyłać sygnału ciągle
+  }
 
-  if (!apds.readAmbientLightLux(ambient_light)) ambient_light = -1;
-
-
-  Serial.print("SENSOR -> Jasnosc: ");
-  Serial.print(ambient_light);
-  Serial.print("\n");
-
-  delay(200); // Odświeżanie co 0.2 sekundy
-
-  /*If (ambient_light < interact){
-    Serial.print("Wykryto kulke")
-  }*/
+  delay(100);
 }
