@@ -12,8 +12,6 @@
 
 # Projekt
 
-() - opcjonalne
-
 ## Gra w kulke
 
 ### Mechanika (Borsuk i Stary)
@@ -26,7 +24,7 @@
 - [x] Joystick
 - [x] Serwa
 - [x] Czujniki
-- [ ] (Macierze LED)
+- [x] Macierze LED - macierz nie działa :/
 
 ### Embedded - wspolnie
 - [x] Sterowanie joystickiem
@@ -40,6 +38,7 @@
 - [x] Interfejs pod wyświetlacze
 - [ ] Żetony
 - [x] Korpus
+- [ ] Mocowanie elektroniki
 
 ### Elektronika (Maciej)
 - [x] Wyświetlacz
@@ -50,17 +49,20 @@
 
 ### Embedded - wspolnie
 - [x] Sterowanie wyświetlaczem
-- [ ] Strona internetowa
+- [x] Strona internetowa
 - [x] Wyświetlanie kasy
 - [x] RFID
 - [x] Baza danych pod RFID
 - [x] Głośnik
 - [x] Interfejs gracza (wyświetlacz + enkoder)
-- [ ] Przełącznik on/off
+- [x] Przełącznik on/off
 - [ ] Init start
+- [x] Sterowanie Bluetooth
+- [ ] (Baza danych zewnętrzna)
+- [ ] Integracja głośnika, OLED z grami
 
 ### Marketing
 - [x] Prezentacja
 - [x] Nazwa robota
 - [ ] Dekorowanie korpusu
-- [ ] Zdjecia
+- [ ] Zdjęcia
