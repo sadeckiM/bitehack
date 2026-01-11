@@ -39,10 +39,8 @@ class Motor:
         self.in2.value(0)
 
 # Inicjalizacja sprzętu
-stby = Pin(12, Pin.OUT)
-stby.value(1)
-left_motor = Motor(15, 14, 13)
-right_motor = Motor(10, 11, 9)
+left_motor = Motor(10, 12, 11) #a
+right_motor = Motor(15, 13, 14) #b
 
 # --- KONFIGURACJA BLUETOOTH (BLE) ---
 _UART_UUID = bluetooth.UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
