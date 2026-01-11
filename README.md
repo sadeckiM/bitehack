@@ -1,9 +1,5 @@
 # FC PO NALEWCE 
 ## Robot kasyno
-
-
-
-
 ### Ekipa 
 - #### Michal Sadecki
 - #### Jakub Borsukiewicz
@@ -20,7 +16,7 @@
 - [ ] Labirynt
 - [ ] Obudowa
 - [ ] Mocowanie układu
-- [ ] Mocowanie elektroniko
+- [ ] Mocowanie elektroniki
 
 ### Elektronika (Maciej i Maslak)
 - [x] Joystick
@@ -50,17 +46,18 @@
 
 ### Embedded - wspolnie
 - [x] Sterowanie wyświetlaczem
-- [ ] Strona internetowa
+- [x] Strona internetowa
 - [x] Wyświetlanie kasy
 - [x] RFID
-- [x] Baza danych pod RFID
+- [ ] Baza danych pod RFID
 - [x] Głośnik
 - [x] Interfejs gracza (wyświetlacz + enkoder)
-- [ ] Przełącznik on/off
+- [x] Przełącznik on/off
 - [ ] Init start
+- [ ] Sterowanie przez Bluetooth
 
 ### Marketing
 - [x] Prezentacja
 - [x] Nazwa robota
 - [ ] Dekorowanie korpusu
-- [ ] Zdjecia
+- [ ] Zdjęcia

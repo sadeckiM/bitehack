@@ -1,0 +1,2 @@
+Uruchomienie serwera:
+python -m http.server 8000
