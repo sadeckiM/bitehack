@@ -46,8 +46,11 @@
 int licznik_czasu = 0;
 
 // --- LABIRYNT I2C ---
-#define SLAVE_LABIRYNT_ADDR 8    // Adres Arduino (Slave)
+#define SLAVE_LABIRYNT_ADDR 8    // Adres Arduino Uno (Slave)
 #define LABIRYNT_TIME_LIMIT 25   // Czas gry w sekundach
+
+// --- RULETKA I2C ---
+#define SLAVE_ROULETTE_ADDR 9     // Adres Arduino Nano (Slave)
 
 // USTAWIENIA LOGICZNE
 #define LEVEL_USER 1
@@ -703,144 +706,106 @@ void handleRouletteBet() {
 }
 
 // --- GŁÓWNA PĘTLA GRY (ODBIÓR WYNIKÓW) ---
-// Zmienne pomocnicze do Labiryntu
+// Zmienne pomocnicze (muszą być przed funkcją, tylko raz!)
 unsigned long labiryntStartTime = 0;
 bool labiryntRunning = false;
+bool rouletteRunning = false; // Nowa flaga dla ruletki
 
 void handlePlaying() {
-  // Blokada przypadkowego kliknięcia enkodera podczas gry
+  // Blokada przycisku enkodera
   if (rotary.isEncoderButtonClicked()) {} 
 
   // ============================================================
-  // GRA 1: RULETKA (ID 0)
+  // GRA 1: RULETKA (ID 0) - WERSJA I2C (ARDUINO NANO)
   // ============================================================
   if (activeGameId == 0) {
-    if (Serial.available() > 0) {
-      String cmd = Serial.readStringUntil('\n');
-      cmd.trim();
+    
+    // 1. START GRY (Wyślij komendę do Nano)
+    if (!rouletteRunning) {
+      rouletteRunning = true;
+      
+      // Wyślij "1" do Nano (Start)
+      Wire.beginTransmission(SLAVE_ROULETTE_ADDR);
+      Wire.write(1); 
+      Wire.endTransmission();
+      
+      lcd.clear(); lcd.print("Kreci sie...");
+      lcd.setCursor(0, 1); lcd.print("Powodzenia!");
+      
+      // Animacja kręcenia na OLED (opcjonalnie)
+      display.clearDisplay();
+      display.setTextSize(2); display.setCursor(20, 20);
+      display.print("SPINNING"); display.display();
+    }
 
-      if (cmd.startsWith("SCORE:")) {
-        int winningColor = cmd.substring(6).toInt(); 
-        int pointsWon = 0;
-        bool userWon = false;
+    // 2. ODPYTYWANIE O WYNIK (POLLING)
+    // Pytamy Nano co 200ms, żeby nie zapchać I2C
+    static unsigned long lastPollTime = 0;
+    if (millis() - lastPollTime > 200) {
+       lastPollTime = millis();
+       
+       // Pytamy o 1 bajt
+       Wire.requestFrom(SLAVE_ROULETTE_ADDR, 1);
+       
+       if (Wire.available()) {
+         byte result = Wire.read();
+         
+         // 255 = STATUS_SPINNING (Nano jeszcze kręci)
+         // Każda inna wartość (0, 1, 2) to gotowy wynik!
+         if (result != 255) {
+            
+            // --- MAMY WYNIK! ---
+            int winningColor = result;
+            int pointsWon = 0;
+            bool userWon = false;
 
-        // Logika wygranej Ruletki
-        if (winningColor == rouletteColorIndex) {
-          userWon = true;
-          int multiplier = (winningColor == 2) ? 7 : 2; 
-          pointsWon = rouletteBetAmount * multiplier;
-        }
+            // Logika wygranej
+            if (winningColor == rouletteColorIndex) {
+              userWon = true;
+              int multiplier = (winningColor == 2) ? 7 : 2; 
+              pointsWon = rouletteBetAmount * multiplier;
+            }
 
-        lcd.clear();
-        lcd.print("Wynik: " + getColorName(winningColor));
-        lcd.setCursor(0, 1);
-        if (userWon) {
-           lcd.print("Wygrana: " + String(pointsWon));
-           animacjaWin();
-           playTune(winFFM, winFFD, 10, 170);
-        } else {
-           lcd.print("Przegrana :(");
-           animacjaLose();
-        }
+            // Wyświetlanie
+            lcd.clear();
+            lcd.print("Wynik: " + getColorName(winningColor));
+            lcd.setCursor(0, 1);
+            if (userWon) {
+               lcd.print("Wygrana: " + String(pointsWon));
+               animacjaWin();
+               playTune(winFFM, winFFD, 10, 170);
+            } else {
+               lcd.print("Przegrana :(");
+               animacjaLose();
+            }
 
-        if (pointsWon > 0) {
-          int current = db_getBalance(currentLoggedUid);
-          db_setBalance(currentLoggedUid, current + pointsWon);
-        }
+            // Zapis do bazy
+            if (pointsWon > 0) {
+              int current = db_getBalance(currentLoggedUid);
+              db_setBalance(currentLoggedUid, current + pointsWon);
+            }
 
-        delay(3000); 
-        currentState = STATE_GAME_SELECT;
-        rotary.setBoundaries(0, lenMenuGames - 1, true);
-        updateLcdMenu(menuGames[0]); 
-      }
+            delay(3000); 
+            
+            // Reset flag i powrót
+            rouletteRunning = false; 
+            display.clearDisplay(); display.display();
+            
+            currentState = STATE_GAME_SELECT;
+            rotary.setBoundaries(0, lenMenuGames - 1, true);
+            updateLcdMenu(menuGames[0]); 
+         }
+       }
     }
   }
 
   // ============================================================
-  // GRA 2: LABIRYNT (ID 1)
+  // GRA 2: LABIRYNT (ID 1) - WERSJA I2C (UNO + SENSOR)
   // ============================================================
   else if (activeGameId == 1) {
-    
-    // --- A. START GRY (Wykonuje się tylko raz) ---
-    if (!labiryntRunning) {
-      labiryntRunning = true;
-      labiryntStartTime = millis();
-      
-      // Wyślij sygnał do Arduino: "Włącz joystick!"
-      setLabiryntState(true);
-      
-      lcd.clear(); lcd.print("LABIRYNT START!");
-      playTune(marioM, marioD, 11, 200); 
-    }
-
-    // --- B. LICZNIK CZASU ---
-    unsigned long elapsedTime = (millis() - labiryntStartTime) / 1000;
-    int timeLeft = LABIRYNT_TIME_LIMIT - elapsedTime;
-
-    // Odświeżanie czasu na LCD (tylko gdy się zmieni sekunda)
-    static int lastTimeDisplay = -1;
-    if (timeLeft != lastTimeDisplay) {
-      lcd.setCursor(0, 1);
-      lcd.print("Czas: " + String(timeLeft) + "s   ");
-      lastTimeDisplay = timeLeft;
-    }
-
-    // --- C. ODCZYT CZUJNIKA METY (APDS-9930) ---
-    bool metaTriggered = false;
-    uint16_t proximity_data = 0;
-
-    // Próba odczytu czujnika
-    if ( !apds.readProximity(proximity_data) ) {
-       // Jeśli odczyt się udał, sprawdzamy wartość.
-       // 1023 = max zbliżenie. 850 to ok. 1-2 cm od czujnika.
-       if (proximity_data > 850) { 
-          metaTriggered = true;
-       }
-    }
-
-    // --- D. SPRAWDZENIE WYNIKU ---
-    
-    // SCENARIUSZ: WYGRANA (Meta)
-    if (metaTriggered) {
-      setLabiryntState(false); // Wyślij do Arduino: "Wyłącz serwa!"
-      labiryntRunning = false;
-      
-      int pointsWon = 50; // Nagroda za labirynt
-      int current = db_getBalance(currentLoggedUid);
-      db_setBalance(currentLoggedUid, current + pointsWon);
-
-      lcd.clear(); lcd.print("META ZDOBYTA!");
-      lcd.setCursor(0, 1); lcd.print("Nagroda: " + String(pointsWon));
-      
-      animacjaWin();
-      playTune(winFFM, winFFD, 10, 170);
-      delay(3000);
-      
-      // Powrót do menu
-      currentState = STATE_GAME_SELECT;
-      rotary.setBoundaries(0, lenMenuGames - 1, true);
-      updateLcdMenu(menuGames[1]); 
-      return;
-    }
-
-    // SCENARIUSZ: PRZEGRANA (Czas minął)
-    if (timeLeft <= 0) {
-      setLabiryntState(false); // Wyślij do Arduino: "Wyłącz serwa!"
-      labiryntRunning = false;
-
-      lcd.clear(); lcd.print("KONIEC CZASU!");
-      lcd.setCursor(0, 1); lcd.print("Sprobuj ponownie");
-      
-      animacjaLose();
-      playTune(lossM, lossD, 4, 100);
-      delay(3000);
-
-      // Powrót do menu
-      currentState = STATE_GAME_SELECT;
-      rotary.setBoundaries(0, lenMenuGames - 1, true);
-      updateLcdMenu(menuGames[1]);
-      return;
-    }
+    // ... (TUTAJ WKLEJ CAŁY KOD LABIRYNTU Z POPRZEDNIEJ ODPOWIEDZI) ...
+    // ... (Dla przejrzystości nie wklejam go ponownie, ale on tu musi być) ...
+    // SKOPIUJ GO Z POPRZEDNIEJ WIADOMOŚCI (tam gdzie jest obsługa APDS i OLED)
   }
 }
 
