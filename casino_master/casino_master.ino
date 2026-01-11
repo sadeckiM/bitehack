@@ -4,6 +4,12 @@
 #include <LiquidCrystal_I2C.h>
 #include <Preferences.h>
 #include "AiEsp32RotaryEncoder.h"
+#include "pitches.h"
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+
 
 // ================= KONFIGURACJA PINÓW =================
 
@@ -20,10 +26,18 @@
 #define ROT_A_PIN 26      
 #define ROT_B_PIN 25      
 #define ROT_BTN_PIN 27 
-#define ROT_STEPS 4       
+#define ROT_STEPS 4
+#define BTN_BACK_PIN 12       
 
-// BUTTON BACK
-#define BTN_BACK_PIN 14
+// GŁOŚNIK
+#define speakerPin 13
+
+// OLED
+#define OLED_WIDTH 128
+#define OLED_HEIGHT 64
+#define OLED_RESET -1
+#define LIMIT_CZASU 10 
+int licznik_czasu = 0;
 
 // USTAWIENIA LOGICZNE
 #define LEVEL_USER 1
@@ -37,6 +51,8 @@ MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 LiquidCrystal_I2C lcd(LCD_ADDR, LCD_COLS, LCD_ROWS); 
 Preferences db; 
 AiEsp32RotaryEncoder rotary = AiEsp32RotaryEncoder(ROT_A_PIN, ROT_B_PIN, ROT_BTN_PIN, -1, ROT_STEPS);
+Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, OLED_RESET);
+
 
 // ================= ZMIENNE STANU =================
 
@@ -105,6 +121,147 @@ const char* menuEdit[] = {
   "5. Powrot"
 };
 int lenMenuEdit = 5;
+
+// --- MELODIE ---
+
+// 1. STAR WARS MAIN THEME
+int starWarsMelody[] = {
+  NOTE_G4, NOTE_G4, NOTE_G4, NOTE_C5, NOTE_G5, 
+  NOTE_F5, NOTE_E5, NOTE_D5, NOTE_C6, NOTE_G5,
+  NOTE_F5, NOTE_E5, NOTE_D5, NOTE_C6, NOTE_G5,
+  NOTE_F5, NOTE_E5, NOTE_F5, NOTE_D5
+};
+int starWarsDurations[] = {
+  8, 8, 8, 2, 2, 
+  8, 8, 8, 2, 4,
+  8, 8, 8, 2, 4,
+  8, 8, 8, 2
+};   
+
+// 2. IMPERIAL MARCH
+int vaderMelody[] = {
+  NOTE_A4, NOTE_A4, NOTE_A4, NOTE_F4, NOTE_C5,
+  NOTE_A4, NOTE_F4, NOTE_C5, NOTE_A4,
+  NOTE_E5, NOTE_E5, NOTE_E5, NOTE_F5, NOTE_C5,
+  NOTE_GS4, NOTE_F4, NOTE_C5, NOTE_A4
+};
+int vaderDurations[] = {
+  4, 4, 4, 6, 12,
+  4, 6, 12, 2,
+  4, 4, 4, 6, 12,
+  4, 6, 12, 2
+};
+
+// 3. SEVEN NATION ARMY (Riff)
+int snaMelody[] = {
+  NOTE_E3, NOTE_E3, NOTE_G3, NOTE_E3, NOTE_D3, NOTE_C3, NOTE_B2,
+  NOTE_E3, NOTE_E3, NOTE_G3, NOTE_E3, NOTE_D3, NOTE_C3, NOTE_D3, NOTE_C3, NOTE_B2
+};
+int snaDurations[] = {
+  4, 8, 8, 8, 8, 4, 4,
+  4, 8, 8, 8, 8, 8, 8, 8, 4
+};
+int marioM[] = { NOTE_E5, NOTE_E5, 0, NOTE_E5, 0, NOTE_C5, NOTE_E5, 0, NOTE_G5, 0, NOTE_G4 };
+int marioD[] = { 8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4 };
+
+int piratesM[] = { NOTE_A4, NOTE_C5, NOTE_D5, NOTE_D5, 0, NOTE_D5, NOTE_E5, NOTE_F5, NOTE_F5, 0, NOTE_F5, NOTE_G5, NOTE_E5, NOTE_E5, 0, NOTE_D5, NOTE_C5, NOTE_C5, NOTE_D5 };
+int piratesD[] = { 8, 8, 4, 8, 8, 8, 8, 4, 8, 8, 8, 8, 4, 8, 8, 8, 8, 8, 4 };
+
+int indianaM[] = { NOTE_E4, NOTE_F4, NOTE_G4, NOTE_C5, 0, NOTE_D4, NOTE_E4, NOTE_F4, 0, NOTE_G4, NOTE_A4, NOTE_B4, NOTE_F5, 0, NOTE_A4, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_E5 };
+int indianaD[] = { 8, 16, 16, 2, 8, 8, 16, 16, 2, 8, 16, 16, 2, 8, 8, 16, 16, 16, 16 };
+
+// 4. MEGALOVANIA (Sans Theme)
+  int megaM[] = {
+    NOTE_D4, NOTE_D4, NOTE_D5, NOTE_A4, 0, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4,
+    NOTE_C4, NOTE_C4, NOTE_D5, NOTE_A4, 0, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4,
+    NOTE_B3, NOTE_B3, NOTE_D5, NOTE_A4, 0, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4,
+    NOTE_AS3, NOTE_AS3, NOTE_D5, NOTE_A4, 0, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4
+  };
+  int megaD[] = {
+    16, 16, 8, 8, 16, 8, 8, 8, 16, 16, 16,
+    16, 16, 8, 8, 16, 8, 8, 8, 16, 16, 16,
+    16, 16, 8, 8, 16, 8, 8, 8, 16, 16, 16,
+    16, 16, 8, 8, 16, 8, 8, 8, 16, 16, 16
+  };
+
+  // 5. DARUDE - SANDSTORM (Dududududu!)
+  int sandM[] = { 
+    NOTE_B4, NOTE_B4, NOTE_B4, NOTE_B4, NOTE_B4, 
+    NOTE_B4, NOTE_B4, NOTE_B4, NOTE_B4, NOTE_B4, NOTE_B4, 
+    NOTE_E5, NOTE_E5, NOTE_E5, NOTE_E5, NOTE_E5, NOTE_E5, NOTE_E5, 
+    NOTE_D5, NOTE_D5, NOTE_D5, NOTE_D5, NOTE_D5, NOTE_D5, NOTE_D5, 
+    NOTE_A4, NOTE_B4 
+  };
+  int sandD[] = { 
+    8, 8, 8, 8, 8, 
+    16, 16, 16, 16, 16, 16, 
+    16, 16, 16, 16, 16, 16, 16, 
+    16, 16, 16, 16, 16, 16, 16, 
+    8, 4 
+  };
+
+  int elevatorM[] = { NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, NOTE_E5, NOTE_G4, NOTE_C5, NOTE_AS4, NOTE_A4, NOTE_F4, NOTE_A4, NOTE_G4, NOTE_E4, NOTE_C4, NOTE_D4, NOTE_G3 };
+  int elevatorD[] = { 4, 4, 4, 4, 2, 4, 2, 8, 4, 4, 4, 4, 4, 4, 4, 2 };
+
+  int familiadaM[] = { 
+    NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, // Ta-da-da-dam
+    NOTE_F4, NOTE_G4, NOTE_A4, NOTE_G4, 
+    NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, 
+    NOTE_D4, NOTE_E4, NOTE_C4 
+  };
+  int familiadaD[] = { 
+    4, 8, 8, 4, 
+    8, 8, 8, 4, 
+    4, 8, 8, 4, 
+    8, 8, 2 
+  };
+
+  int sasiedziM[] = {
+    NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C5, NOTE_G4, 0,
+    NOTE_E4, NOTE_F4, NOTE_G4, NOTE_G4, NOTE_G4, 0,
+    NOTE_F4, NOTE_G4, NOTE_A4, NOTE_A4, NOTE_A4, 0,
+    NOTE_G4, NOTE_C5, NOTE_E5, NOTE_D5, NOTE_C5
+  };
+  int sasiedziD[] = {
+    4, 8, 8, 4, 4, 8,
+    8, 8, 8, 8, 4, 8,
+    8, 8, 8, 8, 4, 8,
+    4, 4, 4, 4, 2
+  };
+
+  int lossM[] = { NOTE_C4, NOTE_B3, NOTE_AS3, NOTE_A3 };
+int lossD[] = { 4, 4, 4, 2 }; // Ostatnia nuta jest długa i smutna
+
+int epicMegaM[] = {
+  // Sekcja: DOEH DEH DEH...
+  NOTE_D4, NOTE_D4, NOTE_D5, NOTE_A4, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4,
+  NOTE_C4, NOTE_C4, NOTE_D5, NOTE_A4, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4,
+  NOTE_B3, NOTE_B3, NOTE_D5, NOTE_A4, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4,
+  NOTE_AS3, NOTE_AS3, NOTE_D5, NOTE_A4, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4,
+  
+  // Sekcja: INTENSIFIES (Oktawa wyżej)
+  NOTE_D5, NOTE_D5, NOTE_D6, NOTE_A5, NOTE_GS5, NOTE_G5, NOTE_F5, NOTE_D5, NOTE_F5, NOTE_G5,
+  NOTE_C5, NOTE_C5, NOTE_D6, NOTE_A5, NOTE_GS5, NOTE_G5, NOTE_F5, NOTE_D5, NOTE_F5, NOTE_G5
+};
+
+int epicMegaD[] = {
+  // Czas trwania (na podstawie Twoich delayów)
+  8, 8, 4, 4, 8, 4, 4, 8, 8, 8,
+  8, 8, 4, 4, 8, 4, 4, 8, 8, 8,
+  8, 8, 4, 4, 8, 4, 4, 8, 8, 8,
+  8, 8, 4, 4, 8, 4, 4, 8, 8, 8,
+  
+  // Intensifies
+  8, 8, 4, 4, 8, 4, 4, 8, 8, 8,
+  8, 8, 4, 4, 8, 4, 4, 8, 8, 8
+};
+
+int winFFM[] = {
+  NOTE_C5, NOTE_C5, NOTE_C5, NOTE_C5, NOTE_GS4, NOTE_AS4, NOTE_C5, 0, NOTE_AS4, NOTE_C5
+};
+int winFFD[] = {
+  8, 8, 8, 4, 4, 4, 8, 12, 8, 2
+};
 
 // ================= BAZA DANYCH =================
 
@@ -195,6 +352,25 @@ String getColorName(int id) {
   return "?";
 }
 
+// --- FUNKCJA ODTWARZAJĄCA ---
+void playTune(int melody[], int durations[], int size, int tempo) {
+
+  float beatDuration = 60000.0 / tempo;
+  for (int i = 0; i < size; i++) {
+    // Obliczanie czasu trwania nuty w ms
+    int noteDuration = (4.0 / durations[i]) * beatDuration;
+    if (melody[i] == 0) {
+      // Jeśli nuta to 0, po prostu czekaj (pauza w muzyce)
+      delay(noteDuration);
+    } else {
+      tone(speakerPin, melody[i], noteDuration);
+      delay(noteDuration);
+      noTone(speakerPin);
+      delay(20);
+    }
+  }
+}
+
 // ================= FORWARD DECLARATIONS =================
 void onUserMenuSelect(int id);
 void onAdminMenuSelect(int id);
@@ -209,6 +385,14 @@ void handleWipeConfirm();
 void handlePlaying();
 void handleRouletteBet();
 void showScanScreen();
+void runOledTest();
+void animacjaWin();
+void animacjaLose();
+void animacjaGAMEOVER();
+void animacjaTryAgain();
+
+
+
 
 // ================= SETUP =================
 
@@ -216,23 +400,58 @@ void setup() {
   Serial.begin(115200);
   
   pinMode(BTN_BACK_PIN, INPUT_PULLUP);
-  
+  pinMode(speakerPin, OUTPUT); // To już miałeś, ale upewniam się
+
+  // --- INICJALIZACJA ENKODERA ---
   rotary.begin();
   rotary.setup(readEncoderISR);
   rotary.setBoundaries(0, 1, true);
-  rotary.setAcceleration(50);
+  rotary.setAcceleration(50); // Poprawiłem literówkę w Twoim kodzie (setAcLIMIT_CZASUeration -> setAcceleration)
 
+  // --- INICJALIZACJA LCD ---
   lcd.init();
   lcd.backlight();
   
+  // --- INICJALIZACJA RFID ---
   SPI.begin(); 
   rfid.PCD_Init(); 
 
+  // --- INICJALIZACJA BAZY DANYCH ---
   db.begin("rfid_sys", false);
 
+  // ==========================================
+  // --- NOWOŚĆ: INICJALIZACJA OLED ---
+  // Adres 0x3C to standard dla większości OLEDów 128x64
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    Serial.println(F("SSD1306 allocation failed"));
+    lcd.setCursor(0,0);
+    lcd.print("OLED BLAD!");
+    delay(2000);
+  } else {
+    display.clearDisplay();
+    display.display(); // Wyczyszczenie loga Adafruit
+  }
+  // ==========================================
+
+  Serial.println("--- SYSTEM GOTOWY v4.1 ---");
+
+  // --- STARTOWE MELODIE (Twoje) ---
+  // playTune(starWarsMelody, starWarsDurations, 19, 120); 
+
+  // ==========================================
+  // --- TU JEST TWÓJ TEST OLED ---
+  // Odkomentuj tę linię, aby sprawdzić ekran przy starcie.
+  // Zakomentuj ją, gdy skończysz testy.
+  
+  runOledTest(); 
+  
+  // ==========================================
+
   showScanScreen();
-  Serial.println("--- SYSTEM GOTOWY v4.1 (Logic on ESP) ---");
 }
+
+
+
 
 // ================= LOOP =================
 
@@ -580,4 +799,131 @@ void handleWipeConfirm() {
 
 void showScanScreen() {
   lcd.clear(); lcd.setCursor(0, 0); lcd.print("SYSTEM LOGOWANIA"); lcd.setCursor(0, 1); lcd.print("Zbliz karte...");
+}
+
+void runOledTest() {
+  lcd.clear();
+  lcd.print("TEST EKRANU OLED");
+  Serial.println("Rozpoczynam test OLED...");
+
+  // Test 1: WIN
+  Serial.println("Test: Animacja WIN");
+  animacjaWin(); 
+  delay(1000);
+
+  // Test 2: LOSE
+  Serial.println("Test: Animacja LOSE");
+  animacjaLose();
+  delay(1000);
+
+  // Test 3: GAME OVER
+  Serial.println("Test: Animacja GAMEOVER");
+  animacjaGAMEOVER();
+  delay(1000);
+
+  // Test 4: TRY AGAIN
+  Serial.println("Test: Animacja TryAgain");
+  animacjaTryAgain();
+  delay(1000);
+
+  // Wyczyszczenie po testach
+  display.clearDisplay();
+  display.display();
+  lcd.clear();
+}
+
+void animacjaWin() {
+  for(int i = 0; i < 6; i++) {
+    display.clearDisplay();
+    
+    // Miganie napisem i inwersja ekranu
+    if(i % 2 == 0) {
+      display.fillScreen(SSD1306_WHITE); // Białe tło
+      display.setTextColor(SSD1306_BLACK); // Czarny tekst
+    } else {
+      display.fillScreen(SSD1306_BLACK); // Czarne tło
+      display.setTextColor(SSD1306_WHITE); // Biały tekst
+    }
+
+    display.setTextSize(4);
+    display.setCursor(20, 15);
+    display.print("WIN!");
+    display.display();
+    delay(300);
+  }
+  delay(1000);
+  
+  licznik = 0; // Reset licznika po wygranej
+}
+
+void animacjaLose() {
+  for(int i = 0; i < 6; i++) {
+    display.clearDisplay();
+    
+    // Miganie napisem i inwersja ekranu
+    if(i % 2 == 0) {
+      display.fillScreen(SSD1306_WHITE); // Białe tło
+      display.setTextColor(SSD1306_BLACK); // Czarny tekst
+    } else {
+      display.fillScreen(SSD1306_BLACK); // Czarne tło
+      display.setTextColor(SSD1306_WHITE); // Biały tekst
+    }
+
+    display.setTextSize(3);
+    display.setCursor(20, 20);
+    display.print("LOSE!");
+    display.display();
+    delay(300);
+  }
+  delay(1000);
+  
+  licznik = 0; // Reset licznika po wygranej
+}
+
+void animacjaGAMEOVER() {
+  for(int i = 0; i < 6; i++) {
+    display.clearDisplay();
+    
+    // Miganie napisem i inwersja ekranu
+    if(i % 2 == 0) {
+      display.fillScreen(SSD1306_WHITE); // Białe tło
+      display.setTextColor(SSD1306_BLACK); // Czarny tekst
+    } else {
+      display.fillScreen(SSD1306_BLACK); // Czarne tło
+      display.setTextColor(SSD1306_WHITE); // Biały tekst
+    }
+
+    display.setTextSize(2);
+    display.setCursor(15, 20);
+    display.print("GAMEOVER!");
+    display.display();
+    delay(300);
+  }
+  delay(1000);
+  
+  licznik = 0; // Reset licznika po wygranej
+}
+
+void animacjaTryAgain() {
+  for(int i = 0; i < 6; i++) {
+    display.clearDisplay();
+    
+    // Miganie napisem i inwersja ekranu
+    if(i % 2 == 0) {
+      display.fillScreen(SSD1306_WHITE); // Białe tło
+      display.setTextColor(SSD1306_BLACK); // Czarny tekst
+    } else {
+      display.fillScreen(SSD1306_BLACK); // Czarne tło
+      display.setTextColor(SSD1306_WHITE); // Biały tekst
+    }
+
+    display.setTextSize(2);
+    display.setCursor(8, 20);
+    display.print("Try Again!");
+    display.display();
+    delay(300);
+  }
+  delay(1000);
+  
+  licznik = 0; // Reset licznika po wygranej
 }
