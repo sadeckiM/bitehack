@@ -30,7 +30,12 @@
 #define BTN_BACK_PIN 12       
 
 // GŁOŚNIK
-#define speakerPin 13
+#define speakerPin 32
+#define BUZZER_CHANNEL 0   // Kanał PWM (0-15)
+
+//PROXIMITY SNSOR
+#define TOKEN_TRIG_PIN 2
+#define TOKEN_ECHO_PIN 33
 
 // OLED
 #define OLED_WIDTH 128
@@ -44,6 +49,8 @@ int licznik_czasu = 0;
 #define LEVEL_ADMIN 2
 #define START_BALANCE 50
 #define GAME_COST_LABIRYNT 20 
+#define COIN_DISTANCE 2
+#define COIN_VALUE 20
 
 // ================= OBIEKTY =================
 
@@ -69,7 +76,8 @@ enum AppState {
   STATE_ADMIN_SCAN_TARGET,  
   STATE_ADMIN_EDIT_TAG,     
   STATE_SERIAL_ADMIN_WAIT,  
-  STATE_WIPE_CONFIRM        
+  STATE_WIPE_CONFIRM,
+  STATE_DEPOSIT      
 };
 
 AppState currentState = STATE_SCAN;
@@ -352,24 +360,7 @@ String getColorName(int id) {
   return "?";
 }
 
-// --- FUNKCJA ODTWARZAJĄCA ---
-void playTune(int melody[], int durations[], int size, int tempo) {
 
-  float beatDuration = 60000.0 / tempo;
-  for (int i = 0; i < size; i++) {
-    // Obliczanie czasu trwania nuty w ms
-    int noteDuration = (4.0 / durations[i]) * beatDuration;
-    if (melody[i] == 0) {
-      // Jeśli nuta to 0, po prostu czekaj (pauza w muzyce)
-      delay(noteDuration);
-    } else {
-      tone(speakerPin, melody[i], noteDuration);
-      delay(noteDuration);
-      noTone(speakerPin);
-      delay(20);
-    }
-  }
-}
 
 // ================= FORWARD DECLARATIONS =================
 void onUserMenuSelect(int id);
@@ -390,6 +381,8 @@ void animacjaWin();
 void animacjaLose();
 void animacjaGAMEOVER();
 void animacjaTryAgain();
+void playTune(int* melody, int* durations, int len, int tempo);
+long getDistance();
 
 
 
@@ -398,55 +391,54 @@ void animacjaTryAgain();
 
 void setup() {
   Serial.begin(115200);
-  
-  pinMode(BTN_BACK_PIN, INPUT_PULLUP);
-  pinMode(speakerPin, OUTPUT); // To już miałeś, ale upewniam się
 
-  // --- INICJALIZACJA ENKODERA ---
+// --- 1. INICJALIZACJA DŹWIĘKU (LEDC) ---
+  // Musi być przed innymi bibliotekami
+  ledcSetup(BUZZER_CHANNEL, 2000, 8); 
+  ledcAttachPin(speakerPin, BUZZER_CHANNEL);
+  
+  // Krótki test "piknięcia" przy starcie systemu (opcjonalne, ale potwierdza, że działa)
+  ledcWriteTone(BUZZER_CHANNEL, 2000);
+  ledcWrite(BUZZER_CHANNEL, 127); // Głośność 50%
+  delay(100);
+  ledcWrite(BUZZER_CHANNEL, 0);   // Cisza
+  // 2. Reszta konfiguracji
+  pinMode(BTN_BACK_PIN, INPUT_PULLUP);
+  pinMode(TOKEN_TRIG_PIN, OUTPUT); //Pin, do którego podłączymy trig jako wyjście
+  pinMode(TOKEN_ECHO_PIN, INPUT); //a echo, jako wejście
+  
+  // INICJALIZACJA ENKODERA
   rotary.begin();
   rotary.setup(readEncoderISR);
   rotary.setBoundaries(0, 1, true);
-  rotary.setAcceleration(50); // Poprawiłem literówkę w Twoim kodzie (setAcLIMIT_CZASUeration -> setAcceleration)
+  rotary.setAcceleration(50);
 
-  // --- INICJALIZACJA LCD ---
+  // INICJALIZACJA LCD
   lcd.init();
   lcd.backlight();
   
-  // --- INICJALIZACJA RFID ---
+  // INICJALIZACJA RFID
   SPI.begin(); 
   rfid.PCD_Init(); 
 
-  // --- INICJALIZACJA BAZY DANYCH ---
+  // INICJALIZACJA BAZY
   db.begin("rfid_sys", false);
 
-  // ==========================================
-  // --- NOWOŚĆ: INICJALIZACJA OLED ---
-  // Adres 0x3C to standard dla większości OLEDów 128x64
+  // INICJALIZACJA OLED
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
     Serial.println(F("SSD1306 allocation failed"));
-    lcd.setCursor(0,0);
-    lcd.print("OLED BLAD!");
-    delay(2000);
   } else {
     display.clearDisplay();
-    display.display(); // Wyczyszczenie loga Adafruit
+    display.display(); 
   }
-  // ==========================================
 
-  Serial.println("--- SYSTEM GOTOWY v4.1 ---");
+  Serial.println("--- SYSTEM GOTOWY v4.2 ---");
 
-  // --- STARTOWE MELODIE (Twoje) ---
-  // playTune(starWarsMelody, starWarsDurations, 19, 120); 
-
-  // ==========================================
-  // --- TU JEST TWÓJ TEST OLED ---
-  // Odkomentuj tę linię, aby sprawdzić ekran przy starcie.
-  // Zakomentuj ją, gdy skończysz testy.
+  // TEST GŁÓWNY (już po załadowaniu wszystkiego)
+  // Jeśli słyszałeś "puknięcie" na początku, a tego nie słyszysz -> winny jest OLED lub RFID
+  // playTune(winFFM, winFFD, 10, 170);
   
-  runOledTest(); 
-  
-  // ==========================================
-
+  delay(2000);
   showScanScreen();
 }
 
@@ -456,39 +448,33 @@ void setup() {
 // ================= LOOP =================
 
 void loop() {
+  // Obsługa komend Serial (Admin)
   if (currentState != STATE_PLAYING && Serial.available() > 0) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
     if (cmd == "ADMIN") {
       currentState = STATE_SERIAL_ADMIN_WAIT;
-      lcd.clear(); lcd.print("TRYB ADMIN (USB)"); lcd.setCursor(0, 1); lcd.print("Zbliz karte...");
+      lcd.clear(); lcd.print("TRYB ADMIN (USB)");
     }
   }
 
-  if (currentState != STATE_PLAYING && digitalRead(BTN_BACK_PIN) == LOW) {
-    delay(200);
-    if (currentState != STATE_SCAN) {
-      currentState = STATE_SCAN;
-      currentLoggedUid = ""; 
-      showScanScreen();
-    }
-  }
+  // USUNĄŁEM BLOK "if (digitalRead(BTN_BACK_PIN)..." BO GO JUŻ NIE UŻYWASZ
+  // Teraz cofanie obsługuje się wewnątrz funkcji menu (np. opcja "Powrót")
+  // lub przyciskiem enkodera w specyficznych stanach (jak Deposit).
 
   switch (currentState) {
     case STATE_SCAN:              handleScan(); break;
     case STATE_MENU_USER:         handleMenuGeneric(menuUser, lenMenuUser, onUserMenuSelect); break;
     case STATE_MENU_ADMIN:        handleMenuGeneric(menuAdmin, lenMenuAdmin, onAdminMenuSelect); break;
     case STATE_GAME_SELECT:       handleMenuGeneric(menuGames, lenMenuGames, onGameMenuSelect); break;
-    
     case STATE_ROULETTE_COLOR:    handleMenuGeneric(menuRouletteColors, lenMenuRouletteColors, onRouletteColorSelect); break;
     case STATE_ROULETTE_BET:      handleRouletteBet(); break;
-
     case STATE_PLAYING:           handlePlaying(); break; 
-    
     case STATE_ADMIN_SCAN_TARGET: handleAdminScanTarget(); break;
     case STATE_ADMIN_EDIT_TAG:    handleMenuGeneric(menuEdit, lenMenuEdit, onEditMenuSelect); break;
     case STATE_SERIAL_ADMIN_WAIT: handleSerialAdminWait(); break;
     case STATE_WIPE_CONFIRM:      handleWipeConfirm(); break;
+    case STATE_DEPOSIT:           handleDeposit(); break; // <--- Upewnij się, że to tu jest
   }
 }
 
@@ -573,13 +559,19 @@ void onUserMenuSelect(int id) {
       lcd.print(db_getBalance(currentLoggedUid)); lcd.print(" pkt");
       delay(2000); updateLcdMenu(menuUser[1]);
       break; 
-    case 2: // Doładuj
-      {
-        int bal = db_getBalance(currentLoggedUid);
-        db_setBalance(currentLoggedUid, bal + 10);
-        lcd.print("Doladowano +10");
-        delay(1500); updateLcdMenu(menuUser[2]);
-      }
+case 2: // Doladuj (ZMIANA TUTAJ!)
+      lcd.clear();
+      lcd.print("TRYB WPLATY");
+      lcd.setCursor(0, 1);
+      lcd.print("Uruchamiam sensor");
+      delay(1000);
+      
+      lcd.clear();
+      lcd.print("WRZUC MONETE...");
+      lcd.setCursor(0,1);
+      lcd.print("Kliknij by wyjsc");
+      
+      currentState = STATE_DEPOSIT; // Przełączenie na sensor
       break;
     case 3: // Wyloguj
       currentState = STATE_SCAN; currentLoggedUid = ""; showScanScreen();
@@ -808,7 +800,7 @@ void runOledTest() {
 
   // Test 1: WIN
   Serial.println("Test: Animacja WIN");
-  animacjaWin(); 
+  animacjaWin();
   delay(1000);
 
   // Test 2: LOSE
@@ -853,7 +845,7 @@ void animacjaWin() {
   }
   delay(1000);
   
-  licznik = 0; // Reset licznika po wygranej
+  licznik_czasu = 0; // Reset licznika po wygranej
 }
 
 void animacjaLose() {
@@ -877,7 +869,7 @@ void animacjaLose() {
   }
   delay(1000);
   
-  licznik = 0; // Reset licznika po wygranej
+  licznik_czasu = 0; // Reset licznik_czasua po wygranej
 }
 
 void animacjaGAMEOVER() {
@@ -901,7 +893,7 @@ void animacjaGAMEOVER() {
   }
   delay(1000);
   
-  licznik = 0; // Reset licznika po wygranej
+  licznik_czasu = 0; // Reset licznik_czasua po wygranej
 }
 
 void animacjaTryAgain() {
@@ -925,5 +917,100 @@ void animacjaTryAgain() {
   }
   delay(1000);
   
-  licznik = 0; // Reset licznika po wygranej
+  licznik_czasu = 0; // Reset licznik_czasua po wygranej
+}
+
+// --- FUNKCJA ODTWARZAJĄCA ---
+void playTune(int melody[], int durations[], int size, int tempo) {
+  float beatDuration = 60000.0 / tempo;
+  
+  for (int i = 0; i < size; i++) {
+    int noteDuration = (4.0 / durations[i]) * beatDuration;
+    
+    if (melody[i] == 0) {
+      // Pauza = głośność 0
+      ledcWrite(BUZZER_CHANNEL, 0);
+      delay(noteDuration);
+    } else {
+      // 1. Częstotliwość
+      ledcWriteTone(BUZZER_CHANNEL, melody[i]);
+      // 2. Głośność (bez tego buzzer milczy w dużym projekcie!)
+      ledcWrite(BUZZER_CHANNEL, 127); 
+      
+      delay(noteDuration);
+      
+      // Przerwa między nutami
+      ledcWrite(BUZZER_CHANNEL, 0); 
+      delay(noteDuration * 0.10); 
+    }
+  }
+  // Gwarancja ciszy na koniec
+  ledcWrite(BUZZER_CHANNEL, 0);
+}
+
+// --- Zmień definicje na górze ---
+#define TRIG_PIN 2
+#define ECHO_PIN 33   // Zmień kabel na pin 34 (lub 33/35) - wejście
+#define COIN_DISTANCE 8 // Zwiększmy lekko zasięg do 8cm
+
+// Funkcja pomiaru z zabezpieczeniem (TIMEOUT)
+long getDistance() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  
+  // Czekamy max 30ms. Jeśli brak echa -> zwracamy 0, zamiast wisieć 1 sekundę
+  long duration = pulseIn(ECHO_PIN, HIGH, 30000); 
+  
+  if (duration == 0) return 999; 
+  return duration * 0.034 / 2;
+}
+
+void handleDeposit() {
+  // 1. Najpierw sprawdź przycisk (ENKODER), żeby wyjść
+  if (rotary.isEncoderButtonClicked()) {
+    // Dźwięk anulowania
+    ledcWriteTone(BUZZER_CHANNEL, 500); ledcWrite(BUZZER_CHANNEL, 127);
+    delay(100); ledcWrite(BUZZER_CHANNEL, 0);
+    
+    lcd.clear(); lcd.print("Anulowano");
+    delay(500);
+    
+    // Powrót do menu
+    currentState = STATE_MENU_USER;
+    rotary.setBoundaries(0, lenMenuUser - 1, true);
+    updateLcdMenu(menuUser[2]); // Wracamy na pozycję "Doładuj"
+    return;
+  }
+
+  // 2. Pomiar
+  long distance = getDistance();
+  
+  // Debugowanie - podgląd w Serial Monitorze
+  // Serial.println(distance); 
+
+  // 3. Logika monety (zakres 2cm - 6cm)
+  if (distance > 1 && distance < COIN_DISTANCE) {
+    int current = db_getBalance(currentLoggedUid);
+    db_setBalance(currentLoggedUid, current + 10);
+    
+    lcd.clear(); 
+    lcd.setCursor(0,0); lcd.print("MONETA PRZYJETA!");
+    lcd.setCursor(0,1); lcd.print("Saldo: " + String(current + 10));
+    
+    // Dźwięk monety
+    ledcWriteTone(BUZZER_CHANNEL, 1000); ledcWrite(BUZZER_CHANNEL, 127); delay(100);
+    ledcWriteTone(BUZZER_CHANNEL, 2000); delay(200);
+    ledcWrite(BUZZER_CHANNEL, 0);
+
+    delay(1000); // Pauza żeby nie nabiło za dużo punktów
+    
+    // Przywróć napis
+    lcd.clear(); lcd.print("WRZUC MONETE..."); lcd.setCursor(0,1); lcd.print("Kliknij by wyjsc");
+  }
+  
+  // Krótkie opóźnienie dla stabilności
+  delay(50);
 }
