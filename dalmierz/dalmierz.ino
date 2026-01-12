@@ -1,5 +1,5 @@
-#define trigPin 18
-#define echoPin 5
+#define trigPin 15
+#define echoPin 33
 
 int interact = 5;
 void setup() {
